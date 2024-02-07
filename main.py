@@ -15,7 +15,14 @@ if args.newConfig:
     with open('config.json','w') as f:
         f.write(json.dumps(
             {'webServerPort': 80,
-            'c2ServerPort': 9595}
+            'c2ServerPort': 9595,
+            'accounts': {
+                'admin': {
+                    'passwordHash': "",
+                    'salt': "",
+                    'groups': []
+                }
+            }}
         ))
     print("A default config file has been created at 'config.json'")
 else:#block path to this directory and all subdirectories only? LFI?
@@ -25,4 +32,5 @@ else:#block path to this directory and all subdirectories only? LFI?
         global config
         with open(args.config,'r') as f:
             config = json.loads(f.read())
+        #set all accounts salt to bytes
         print(config)

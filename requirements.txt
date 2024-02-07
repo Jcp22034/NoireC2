@@ -2,3 +2,4 @@ sockets
 Flask
 watchdog
 argparse
+bcrypt
