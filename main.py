@@ -18,9 +18,9 @@ if args.newConfig:
             'c2ServerPort': 9595,
             'accounts': {
                 'admin': {
-                    'passwordHash': "",
-                    'salt': "",
-                    'groups': []
+                    'passwordHash': "$2b$12$onqawEagzgR8R1iNRovnN.a7Z2FzdplZb0w.HuuB4uYeeIxPBuGri",
+                    'salt': "$2b$12$onqawEagzgR8R1iNRovnN.",
+                    'groups': ['admin']
                 }
             }}
         ))

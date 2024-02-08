@@ -1,0 +1,18 @@
+<!DOCTYPE HTML>
+<body>
+    <form method="post">
+        {% if username %}
+        <p><input type=text value={{ username }} name=username>
+        {% else %}
+        <p><input type=text name=username>
+        {% endif %}
+        <p><input type=password name=password>
+        <p><input type=submit value=Login>
+    </form>
+    <br><br>
+    {% if error %}
+        <h2>
+            {{ error }}
+        </h2>
+    {% endif %}
+</body>
