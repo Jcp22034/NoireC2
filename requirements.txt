@@ -3,3 +3,5 @@ Flask
 watchdog
 argparse
 bcrypt
+Flask-login
+Flask-sqlalchemy
