@@ -5,3 +5,5 @@ argparse
 bcrypt
 Flask-login
 Flask-sqlalchemy
+pyjwt
+eventlet

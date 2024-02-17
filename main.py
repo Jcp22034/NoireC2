@@ -1,5 +1,3 @@
-import sockets
-import asyncio
 import os
 import json
 import argparse
@@ -13,17 +11,11 @@ args = parser.parse_args()
 
 if args.newConfig:
     with open('config.json','w') as f:
-        f.write(json.dumps(
-            {'webServerPort': 80,
-            'c2ServerPort': 9595,
-            'accounts': {
-                'admin': {
-                    'passwordHash': "$2b$12$onqawEagzgR8R1iNRovnN.a7Z2FzdplZb0w.HuuB4uYeeIxPBuGri",
-                    'salt': "$2b$12$onqawEagzgR8R1iNRovnN.",
-                    'groups': ['admin']
-                }
-            }}
-        ))
+        f.write('''{
+    "httpServerPort": 5000,
+    "C2ServerPort": 9595,
+    "httpC2Server": True
+}''')
     print("A default config file has been created at 'config.json'")
 else:#block path to this directory and all subdirectories only? LFI?
     if not os.path.exists(args.config):#add check for valid config - needs corrct data? or just close if invalid
@@ -32,5 +24,14 @@ else:#block path to this directory and all subdirectories only? LFI?
         global config
         with open(args.config,'r') as f:
             config = json.loads(f.read())
-        #set all accounts salt to bytes
-        print(config)
+        import concurrent.futures
+        from modules import webServer, C2Server
+        if config['httpC2Server']:
+            webServer.start_server(config['httpServerPort'])
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                web_server_future = executor.submit(webServer.start_server, port=config['httpServerPort'])
+                print(web_server_future.exception)
+                tcp_server_future = executor.submit(C2Server.start_server, port=config['C2ServerPort'])
+                concurrent.futures.wait([web_server_future, tcp_server_future])
+        print("Finished")

