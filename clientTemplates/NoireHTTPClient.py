@@ -35,7 +35,7 @@ def generateJWT() -> str:
     timestamp = response['unixtime']
     country = os.popen('''powershell -Command "gp 'HKCU:\\Control Panel\\International\\Geo\\' | select -exp Name"''').read()
     oS = platform.system() + " "+ platform.release()
-    hwid = os.popen('wmic csproduct get uuid').read().split('/n')[-1]
+    hwid = os.popen('wmic csproduct get uuid').read().split('\n\n')[1].split()[0]
     dUN = os.popen('whoami').read().split("\\")
     uName = dUN[0]
     dName = dUN[1]
