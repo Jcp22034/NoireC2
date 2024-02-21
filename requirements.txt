@@ -1,4 +1,5 @@
 sockets
+requests
 Flask
 watchdog
 argparse
