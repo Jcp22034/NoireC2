@@ -14,7 +14,7 @@ if args.newConfig:
         f.write('''{
     "httpServerPort": 5000,
     "C2ServerPort": 9595,
-    "httpC2Server": True
+    "httpC2Server": true
 }''')
     print("A default config file has been created at 'config.json'")
 else:#block path to this directory and all subdirectories only? LFI?

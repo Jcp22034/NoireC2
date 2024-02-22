@@ -8,3 +8,4 @@ Flask-login
 Flask-sqlalchemy
 pyjwt
 eventlet
+mss

