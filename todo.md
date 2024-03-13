@@ -1,4 +1,5 @@
 # **Web UI**
+
 - [x] Login page
 - [ ] Overview (with permissions)
 - [ ] Team/groups chat page
@@ -10,18 +11,24 @@
 - [ ] Group permissions
 - [ ] User permissions
 
+
 # **HTTP C2 Server**
+
 - [x] Client contact + Database register
 - [x] Task rollout
 - [x] Response recieve
 - [ ] Anything else we can think of
 
+
 # **TCP C2 Server**
+
 - [ ] Client connection
 - [ ] Task stuff
 - [ ] Anything else we can think of
 
+
 # **HTTP C2 Client**
+
 - [x] Setup
 - [x] Save paths & tokens in registry
 - [x] Load paths & tokens
@@ -32,7 +39,9 @@
 - [ ] Persistence
 - [ ] Multi-threaded task running/ running multiple tasks at once
 
+
 # **TCP C2 Client**
+
 - [ ] Setup
 - [ ] Connect to server
 - [ ] Execute and respond
