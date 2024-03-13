@@ -1,5 +1,5 @@
 # **Web UI**
-- [ ] Login page
+- [x] Login page
 - [ ] Overview (with permissions)
 - [ ] Team/groups chat page
 - [ ] Account settings page
