@@ -1,12 +1,12 @@
 # **General**
 
-+ Updated Changelog & ToDo list formats
++ Changed format of Changelog & ToDo list again
 
 # **Server side**
 
-+ Re-designed LogIn page
-+ Removed usage of salts in the database
-
++ Added title on LogIn page
++ Changed server to not send user to Log In page as it is unnecessary
++ Added more documentation
 
 # **Client side**
 

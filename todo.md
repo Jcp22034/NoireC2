@@ -11,7 +11,6 @@
 - [ ] Group permissions
 - [ ] User permissions
 
-
 # **HTTP C2 Server**
 
 - [x] Client contact + Database register
@@ -19,13 +18,11 @@
 - [x] Response recieve
 - [ ] Anything else we can think of
 
-
 # **TCP C2 Server**
 
 - [ ] Client connection
 - [ ] Task stuff
 - [ ] Anything else we can think of
-
 
 # **HTTP C2 Client**
 
@@ -38,7 +35,6 @@
 - [x] Return task results via path
 - [ ] Persistence
 - [ ] Multi-threaded task running/ running multiple tasks at once
-
 
 # **TCP C2 Client**
 
