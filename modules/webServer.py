@@ -133,7 +133,7 @@ def addAccount(username:str, passw:str, isAdmin:bool = False) -> str:
     passw = str(bcrypt.hashpw(passw, salt))[2:-1]
     groups = ['users']
     if isAdmin: groups.append('admins')
-    newUser = User(username=username, password=str(passw), salt=str(salt), groups=",".join(groups))
+    newUser = User(username=username, password=str(passw), groups=",".join(groups))
     db.session.add(newUser)
     db.session.commit()
     return 'Account created successfully'
