@@ -106,7 +106,6 @@ def valid_login(username:str, passw:str) -> bool:
     """
     if not username or not passw: return False
     user = User.query.get(username)
-    print(user)
     if not user: return False
     try:
         passw = bytes(passw, 'utf-8')
@@ -117,17 +116,17 @@ def valid_login(username:str, passw:str) -> bool:
 
 def addAccount(username:str, passw:str, isAdmin:bool = False) -> str:
     """
-+    Add a user to the database.
-+
-+    Args:
-+        username (str): The username of the account to add.
-+        passw (str): The password of the account to add.
-+        isAdmin (bool, optional): Whether the account should have admin privileges.
-+            Defaults to False.
-+
-+    Returns:
-+        str: A message indicating whether the account was created successfully.
-+    """
+    Add a user to the database.
+
+    Args:
+        username (str): The username of the account to add.
+        passw (str): The password of the account to add.
+        isAdmin (bool, optional): Whether the account should have admin privileges.
+            Defaults to False.
+
+    Returns:
+        str: A message indicating whether the account was created successfully.
+    """
     if not username or not passw: return "All fields are required"
     user = User.query.get(username)
     if user: return "An account with this username already exists"
@@ -165,7 +164,7 @@ def favicon():
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 @app.route('/style.css')
-def stylesheel():
+def stylesheet():
     return flask.send_from_directory(os.path.join(app.root_path, 'static'), 'style.css')
 
 @app.route('/login', methods=['POST', 'GET'])
@@ -239,9 +238,33 @@ def clientsPage():
                             command='execute', arguments=flask.request.form['arguments'])
                 db.session.add(task)
                 db.session.commit()
-            flask.flash('Command executed')#doesnt show because redirect, show on load template?
+            flask.flash('Command executed', 'success')#doesnt show because redirect, show on load template?
             return flask.render_template('clients.html', clients = Device.query.all())
         return flask.render_template('clients.html', clients = Device.query.all())
+
+@app.route('/reset_password', methods=['GET', 'POST'])
+@flask_login.fresh_login_required
+def resetPassPage():
+    user = flask_login.current_user
+    if not 'admins' in user.groups.split(','):#make reliant on groups/users with specific permission
+        flask.flash('You do not have the necessary permissions to view this page', 'error')
+        return flask.abort(404)
+    users = User.query.all()
+    users = [user.username for user in users]
+    if flask.request.method == 'POST':
+        try:
+            if flask.request.form['password'] != flask.request.form['cPassword']:
+                flask.flash('The given passwords do not match', 'error')
+            else:
+                user = User.query.get(flask.request.form['users'])
+                passw = flask.request.form['password'].encode('utf-8')
+                user.password = str(bcrypt.hashpw(passw, bcrypt.gensalt(12)))[2:-1]
+                db.session.commit()
+                flask.flash('Password reset', 'success')
+        except:
+            flask.flash('An invalid username was given', 'error')
+    return flask.render_template('resetPassword.html', users = users)
+            
 
 #C2 interface
 def validateC2Client(request:flask.request) -> bool:
