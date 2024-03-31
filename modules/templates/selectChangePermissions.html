@@ -1,0 +1,56 @@
+<!DOCTYPE HTML>
+
+<html lang="en">
+    <head>
+        <title>NC2 - Change Permissions</title>
+    </head>
+    <body>
+        <h1>Select User or Group</h1>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endwith %}
+        <form id='selectionForm' method='get' action='/settings/change_permissions/select'>
+            <label for="users">Select User:</label>
+            <input type="text" id="users" name="users" list="userlist">
+            <datalist id="userlist">
+                {% for user in users %}
+                <option value="{{ user }}">{{ user }}</option>
+                {% endfor %}
+            </datalist>
+            <label for="groups">Select Group:</label>
+            <input type="text" id="groups" name="groups" list="grouplist">
+            <datalist id="grouplist">
+                {% for user in groups %}
+                <option value="{{ user }}">{{ user }}</option>
+                {% endfor %}
+            </datalist>
+            <button type="submit" id="submitButton">Edit</button>
+        </form>
+        <script>
+            const groupsInput = document.getElementById('groups');
+            const userInput = document.getElementById('users');
+    
+            groupsInput.addEventListener('input', function() {
+                if (this.value !== '') {
+                    userInput.disabled = true;
+                } else {
+                    userInput.disabled = false;
+                }
+            });
+    
+            userInput.addEventListener('input', function() {
+                if (this.value !== '') {
+                    groupsInput.disabled = true;
+                } else {
+                    groupsInput.disabled = false;
+                }
+            });
+        </script>
+    </body>
+</html>

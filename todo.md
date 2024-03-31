@@ -1,3 +1,7 @@
+# **Web Server**
+
+- [ ] Add encryption/password(s) to the database
+
 # **Web UI**
 
 - [x] Login page
@@ -7,15 +11,18 @@
 - [ ] Add account (admin)
 - [ ] C2 client list page
 - [ ] Specific C2 client control page
+- [x] Group permissions
+- [x] User permissions
+- [ ] Change permissions page - show groups that give the user (if applicable) specified permissions
+- [ ] Settings page
 - [ ] Anything else we can think of
-- [ ] Group permissions
-- [ ] User permissions
 
 # **HTTP C2 Server**
 
 - [x] Client contact + Database register
 - [x] Task rollout
 - [x] Response recieve
+- [ ] AES-256 bit encryption on all task/other request/response sending and recieving
 - [ ] Anything else we can think of
 
 # **TCP C2 Server**

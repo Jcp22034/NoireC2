@@ -79,6 +79,15 @@
 		</div>
 		<div class="container">
 			<form class="login-form" method="post">
+				{% with messages = get_flashed_messages() %}
+					{% if messages %}
+					<ul>
+						{% for message in messages %}
+						<li>{{ message }}</li>
+						{% endfor %}
+					</ul>
+					{% endif %}
+				{% endwith %}
 			  <h2 class="text-left mb-2">Sign in</h2>
 				<input type="text" placeholder="Username" name=username required>
 				<input type="password" placeholder="Password" name=password required>
