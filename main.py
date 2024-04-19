@@ -11,11 +11,21 @@ args = parser.parse_args()
 
 if args.newConfig:
     with open('config.json','w') as f:
-        f.write('''{
-    "httpServerPort": 5000,
-    "C2ServerPort": 9595,
-    "httpC2Server": true
-}''')
+        json.dump({
+            "ports": {
+                "httpServerPort": 5000,
+                "tcpServerPort": 9595
+            },
+            "encryption": {
+                "aesEncryption": True,
+                "aesPrivateKeyFile": "aes_key.pem",
+                "aesPublicKeyFile": "aes_key.pub.pem",
+                "aesClientKeyFolder": "clientKeys",
+                "sslEncryption": True,
+                "sslCert": "cert.pem",
+                "sslKey": "key.pem"
+            }
+        }, f, indent=4)
     print("A default config file has been created at 'config.json'")
 else:#block path to this directory and all subdirectories only? LFI?
     if not os.path.exists(args.config):#add check for valid config - needs corrct data? or just close if invalid
@@ -23,7 +33,7 @@ else:#block path to this directory and all subdirectories only? LFI?
     else:
         global config
         with open(args.config,'r') as f:
-            config = json.loads(f.read())
+            config = json.load(f)
         import concurrent.futures
         from modules import webServer, C2Server
         if config['httpC2Server']:

@@ -1,6 +1,7 @@
 import flask
 from flask_sqlalchemy import SQLAlchemy
 import flask_login
+from flask_socketio import SocketIO, emit
 import os
 import secrets
 import bcrypt
@@ -11,6 +12,7 @@ from eventlet import wsgi, listen
 app = flask.Flask(__name__)
 app.secret_key = secrets.token_hex()
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
+socketio = SocketIO(app)
 
 db = SQLAlchemy()
 
@@ -218,7 +220,7 @@ def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = 
 
 #Startup checks
 with app.app_context():
-    a = addAccount('admin', 'test', True)#group  adds if not unique, stop this
+    a = addAccount('admin', 'test', True)
     a = addGroup('admins', True, True, True, True, True)
     a = addGroup('users')
     
@@ -312,7 +314,7 @@ def overviewPage():
 @flask_login.login_required
 def clientsPage():
     if flask.request.method == 'GET':
-        return flask.render_template('clients.html', clients = Device.query.all())
+        return flask.render_template('clients.html', clients = Device.query.all(), numClients = len(Device.query.all()))
     else:
         if Device.query.filter_by(jwt=flask.request.form['jwt']).all():
             if flask.request.form['action'] == 'execute':
@@ -321,8 +323,8 @@ def clientsPage():
                 db.session.add(task)
                 db.session.commit()
             flask.flash('Command executed', 'success')#doesnt show because redirect, show on load template?
-            return flask.render_template('clients.html', clients = Device.query.all())
-        return flask.render_template('clients.html', clients = Device.query.all())
+            return flask.render_template('clients.html', clients = Device.query.all(), numClients = len(Device.query.all()))
+        return flask.render_template('clients.html', clients = Device.query.all(), numClients = len(Device.query.all()))
 
 @app.route('/settings')
 @flask_login.fresh_login_required
@@ -351,11 +353,11 @@ def changePassPage():
     elif user.has_permission('change_user_passwords'):
         users = []
         for user in aUsers:
-            if not 'admins' in user.groups.split(","): users.append(user)
+            if not user.has_permission('administrator'): users.append(user)
     else:
         users = []
         for user in aUsers:
-            if 'admins' in user.groups.split(","): users.append(user)
+            if user.has_permission('administrator'): users.append(user)
     users = [user.username for user in users]
     if flask.request.method == 'POST':
         try:
@@ -406,7 +408,6 @@ def changePermsPage():
         flask.flash('You do not have access to this page', 'error')
         flask.abort(400)
     try:
-        print(flask.request.form)
         try:
             users = flask.request.args['users']
             flask.session['users'].index(users)
@@ -420,9 +421,6 @@ def changePermsPage():
         else:
             target = 'groups'
             selected = Group.query.filter_by(name = groups).first()
-        print(flask.session['users'])
-        print(target)
-        print(selected)
         if flask.request.method == 'GET':
             return flask.render_template('changePermissions.html', target = target, selected = selected, isAdmin = user.administrator, editAdmins = user.has_permission('change_admin_permissions'))
         else:#probably need more verification/security checks on this
@@ -438,14 +436,13 @@ def changePermsPage():
             else: selected.change_user_passwords = False
             flask.flash('Permissions have been changed', 'success')
             db.session.commit()
-    except Exception as e:
+    except:
         try:
             del flask.session['users']
             del flask.session['groups']
         except:
             pass
         flask.flash('An invalid target was given', 'error')
-        print(e)
         return flask.redirect(flask.url_for('selectChangePermsPage'))
     try:
         return flask.redirect(flask.url_for('changePermsPage', users=flask.request.args['users']))

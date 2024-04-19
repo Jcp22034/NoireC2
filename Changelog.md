@@ -1,21 +1,17 @@
 # **General**
 
-+ Updated ToDo list
++ Added Flask-SocketIO requirement for future client server communication
++ Added config guide to explain current configuration options
 
 # **Server side**
 
-+ Changed how permissions work
-+ Added permissions interface
-+ Changed 'reset password' to 'change password'
-+ Added changing a user's own password via the change password webpage
-+ Update change password webpage
-+ Removed redirecting C2 HTTP client upon task completion
-+ Added need to login message to login page instead of redirect/target page
-+ Added 4 new permissions 'change_user_passwords', 'change_admin_passwords, 'change_user_permissions', and 'change_admin_permissions'
-+ Added settings page
-+ Updated overview page
-+ Updated clients page
 + Removed unnecessary debug statements
++ Changed Log In page to load github link in a new tab
++ Patched 500 error on loading clients webpage
++ Changed how an admin account is detected when changing passwords
++ Updated 404 page to show flashed messages
++ Added options for encryption to the config file
++ Changed config file format
 
 # **Client side**
 
