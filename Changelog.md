@@ -1,18 +1,19 @@
-# **General**
+# **NoireC2 Changelog**
 
-+ Added Flask-SocketIO requirement for future client server communication
-+ Added config guide to explain current configuration options
+## **General**
 
-# **Server side**
++ Changed the formatting of the changelog
 
-+ Removed unnecessary debug statements
-+ Changed Log In page to load github link in a new tab
-+ Patched 500 error on loading clients webpage
-+ Changed how an admin account is detected when changing passwords
-+ Updated 404 page to show flashed messages
-+ Added options for encryption to the config file
-+ Changed config file format
+## **Server side**
 
-# **Client side**
++ Added a section on the settings page for administrators (only visible to accounts with administrator permissions)
++ Administrator settings are now located on the path '/settings/admin/'
++ Change permissions setting is now an administrator only setting
++ Added user creation page via administrator settings
++ Users attempting to access an unauthorized settings page will now be redirected back to the settings page
++ Added group creation page via administrator settings
++ Fixed an issue that caused groups to not to be created even if they were unique
+
+## **Client side**
 
 + [N/A]

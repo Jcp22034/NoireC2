@@ -1,0 +1,45 @@
+<!DOCTYPE HTML>
+
+<html>
+    <head>
+        <title>NC2 - Create Group</title>
+        <style>
+            footer {
+				position: fixed;
+				left: 0;
+				bottom: 0;
+				width: 100%;
+				background: rgba(0, 0, 0, 0.7);
+				color: white;
+				text-align: center;
+				padding: 10px 0;
+			}
+        </style>
+    </head>
+    <body>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endwith %}
+        <h1>Create Group</h1>
+        <form action="/settings/admin/create_group" method="post">
+            <div class="container">
+                <label for="groupName"><b>Group Name</b></label>
+                <input type="text" placeholder="Enter a Group Name" name="groupName" required>
+                <br>
+                <button type="submit">Create</button>
+            </div>
+        </form>
+        <br>
+        <br>
+        Click <a href="/settings/admin/change_permissions">here</a> to change group permissions
+    </body>
+    <footer>
+        <a href="/settings" style="color: white; font-weight: bold; text-decoration: none;">Back</a>
+    </footer>
+</html>

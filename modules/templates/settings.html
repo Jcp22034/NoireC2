@@ -5,12 +5,31 @@
         <title>NC2 - Settings</title>
     </head>
     <body>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endwith %}
         <h1>Settings</h1>
         <div class="container">
             <ul>
                 <li><a href="/settings/change_password">Change Password</a></li>
-                <li><a href="/settings/change_permissions">Change Permissions</a></li>
             </ul>
         </div>
+        {% if administrator %}
+            <br>
+            <h1>Administrator Settings</h1>
+            <div class="container">
+                <ul>
+                    <li><a href="/settings/admin/change_permissions">Change Permissions</a></li>
+                    <li><a href="/settings/admin/create_user">Create User</a></li>
+                    <li><a href="/settings/admin/create_group">Create Group</a></li>
+                </ul>
+            </div>
+        {% endif %}
     </body>
 </html>

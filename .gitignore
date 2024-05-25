@@ -5,6 +5,7 @@ LICENSE
 config.json
 modules/instance
 *.code-workspace
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
