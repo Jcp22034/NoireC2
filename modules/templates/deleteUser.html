@@ -2,7 +2,7 @@
 
 <html lang="en">
     <head>
-        <title>NC2 - Password Reset</title>
+        <title>NC2 - Delete Account</title>
         <style>
             footer {
 				position: fixed;
@@ -17,19 +17,17 @@
         </style>
     </head>
     <body>
-        <h1>Password Reset</h1>
-
         {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        <ul>
-            {% for message in messages %}
-            <li>{{ message }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+            {% if messages %}
+            <ul>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
         {% endwith %}
-
-        <form method='post'>
+        <h1>Delete account</h1>
+        <form action='/settings/delete_user' method='post'>
             <label for="users">Select User:</label>
             <input type="text" id="users" name="users" list="userlist">
             <datalist id="userlist">
@@ -38,13 +36,10 @@
                 {% endfor %}
             </datalist>
             <br><br>
-            <label for="password">New Password:</label>
-            <input type="password" id="password" name="password" required>
+            <label for="userCheck">Enter the selected account username to confirm account deletion:</label>
+            <input type="text" id="userCheck" name="userCheck" text="Username" required>
             <br><br>
-            <label for="confirm_password">Confirm Password:</label>
-            <input type="password" id="cPassword" name="cPassword" required>
-            <br><br>
-            <input type="submit" value="Reset Password">
+            <input type="submit" value="Confirm account deletion">
         </form>
     </body>
     <footer>

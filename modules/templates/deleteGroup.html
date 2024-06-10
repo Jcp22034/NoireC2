@@ -1,0 +1,48 @@
+<!DOCTYPE HTML>
+
+<html lang="en">
+    <head>
+        <title>NC2 - Delete Group</title>
+        <style>
+            footer {
+				position: fixed;
+				left: 0;
+				bottom: 0;
+				width: 100%;
+				background: rgba(0, 0, 0, 0.7);
+				color: white;
+				text-align: center;
+				padding: 10px 0;
+			}
+        </style>
+    </head>
+    <body>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endwith %}
+        <h1>Delete group</h1>
+        <form action='/settings/admin/delete_group' method='post'>
+            <label for="groups">Select Group:</label>
+            <input type="text" id="groups" name="groups" list="grouplist">
+            <datalist id="grouplist">
+                {% for group in groups %}
+                <option value="{{ group }}">{{ group }}</option>
+                {% endfor %}
+            </datalist>
+            <br><br>
+            <label for="groupCheck">Enter the selected group name to confirm group deletion:</label>
+            <input type="text" id="groupCheck" name="groupCheck" text="name" required>
+            <br><br>
+            <input type="submit" value="Confirm group deletion">
+        </form>
+    </body>
+    <footer>
+        <a href="/settings" style="color: white; font-weight: bold; text-decoration: none;">Back</a>
+    </footer>
+</html>

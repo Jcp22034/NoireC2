@@ -3,17 +3,37 @@
 <html>
     <head>
         <title>NC2 - {{ numClients }} Clients connected</title>
+        <style>
+            footer {
+				position: fixed;
+				left: 0;
+				bottom: 0;
+				width: 100%;
+				background: rgba(0, 0, 0, 0.7);
+				color: white;
+				text-align: center;
+				padding: 10px 0;
+			}
+        </style>
     </head>
     <body>
         {{ clients }}
         <br><br>
         <form method="post">
-            JWT use:
-            <input type="text" name="jwt" value="">
+            <label for="jtw">Select Client:</label>
+            <input type="text" id="jwt" name="jwt" list="userlist">
+            <datalist id="jwtlist">
+                {% for jwt in jwts %}
+                <option value="{{ jwt }}">{{ jwt }}</option>
+                {% endfor %}
+            </datalist>
             <br><br>
             Arguments to run:
             <input type="text" name="arguments">
             <input type="submit" name="action" value="execute">
         </form>
     </body>
+    <footer>
+        <a href="/overview" style="color: white; font-weight: bold; text-decoration: none;">Back</a>
+    </footer>
 </html>

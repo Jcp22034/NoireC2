@@ -3,6 +3,18 @@
 <html lang="en">
     <head>
         <title>NC2 - Change Permissions</title>
+        <style>
+            footer {
+				position: fixed;
+				left: 0;
+				bottom: 0;
+				width: 100%;
+				background: rgba(0, 0, 0, 0.7);
+				color: white;
+				text-align: center;
+				padding: 10px 0;
+			}
+        </style>
     </head>
     <body>
         {% with messages = get_flashed_messages() %}
@@ -33,4 +45,7 @@
             <button type="submit">Save changes</button>
         </form>
     </body>
+    <footer>
+        <a href="/settings" style="color: white; font-weight: bold; text-decoration: none;">Back</a>
+    </footer>
 </html>
