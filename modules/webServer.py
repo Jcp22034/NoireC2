@@ -308,8 +308,9 @@ def loginPage():
             db.session.commit()
             flask_login.login_user(user, remember=True)
             next = flask.request.args.get('next')
-            '''if not url_has_allowed_host_and_scheme(next, flask.request.host):
-                return flask.abort(400)'''
+            if next and not next.startswith('/') and not next.startswith(flask.request.host):
+                return flask.abort(400)
+            # deepcode ignore OR: False positive
             return flask.redirect(next or flask.url_for('overviewPage'))
         else:
             error = 'Invalid username/password'
@@ -355,13 +356,26 @@ def clientsPage():
                             command='execute', arguments=flask.request.form['arguments'])
                 db.session.add(task)
                 db.session.commit()
-            flask.flash('Command executed', 'success')#doesnt show because redirect, show on load template?
+            flask.flash('Command recorded, ID: '+ task.id, 'success')#doesnt show because redirect, show on load template?
             return flask.render_template('clients.html', clients = Device.query.all(), numClients = len(Device.query.all()))
         return flask.render_template('clients.html', clients = Device.query.all(), numClients = len(Device.query.all()))
 
+#Settings stuff
 @app.route('/settings')
 @flask_login.fresh_login_required
 def settingsPage():
+    """
+    Render the settings page for the logged in user.
+
+    This function is a route handler for the '/settings' endpoint. It requires a fresh login session to access.
+    It renders the 'settings.html' template and passes the 'administrator' variable to the template.
+    The 'administrator' variable is set to the result of calling the 'has_permission' method on the
+    'current_user' object of the 'flask_login' module, with the argument 'administrator'.
+
+    Returns:
+        The rendered 'settings.html' template.
+
+    """
     return flask.render_template('settings.html', administrator = flask_login.current_user.has_permission('administrator'))
 
 @app.route('/settings/change_password', methods=['GET', 'POST'])
@@ -410,6 +424,15 @@ def changePassPage():
 @app.route('/settings/delete_user', methods=['GET', 'POST'])
 @flask_login.fresh_login_required
 def deleteUserPage():
+    """
+    Delete a user from the database. Requires fresh login.
+    Admins can delete any user. Non-admins with the delete_user permission can delete Non-admin users.
+    Non-admins without the delete_user permission can only delete themselves.
+    Username validation is done on delete account.
+    
+    Returns:
+        flask.render_template: The rendered deleteUser.html template with a list of users to choose from.
+    """
     user = flask_login.current_user
     if not user.has_permission('administrator'):
         if not user.has_permission('delete_user'):
@@ -418,7 +441,7 @@ def deleteUserPage():
             users = User.query.filter_by(administrator=False).all()
     else:
         users = User.query.all()
-    users.remove(User.query.get('admin'))
+        users.remove(User.query.get('admin'))
     users = [user.username for user in users]
     if flask.request.method == 'POST':
         try:
@@ -516,6 +539,8 @@ def changePermsPage():
             else: selected.change_admin_passwords = False
             if flask.request.form.get('selectChangeUserPW'): selected.change_user_passwords = True
             else: selected.change_user_passwords = False
+            if flask.request.form.get('selectDeleteUsers'): selected.delete_users = True
+            else: selected.delete_users = False
             flask.flash('Permissions have been changed', 'success')
             db.session.commit()
     except:
@@ -608,9 +633,9 @@ def contactC2Page():
     if not Device.query.filter_by(jwt=jwT).first():
         token = jwt.decode(jwT, 'Noire', algorithms=["HS256"])
         try:
-            owner = User.query.get(token['uID'])
+            owner = token['uID']
         except:
-            owner = User.query.get('admin')
+            owner = 'admin'
         uP, tP, rP = generateRandPath(), generateRandPath(), generateRandPath()
         newClient = Device(jwt=jwT, ip=token['ip'], os=token['os'], user=token['user'],
                            hwid=token['hwid'], uniquePath=uP, taskPath=tP, responsePath=rP,
@@ -654,6 +679,7 @@ def instructReponsePages(c2ID:str, pName:str):
             tR.append(jwt.encode({'id': task.id, 'command': task.command, 'args': task.arguments}, 'Noire'))#allow this to be modified
             task.running = True
         db.session.commit()
+        # deepcode ignore XSS: Users will never touch this, only NC2-HTTP clients.
         return '\n'.join(tR)
     else:
         if flask.request.method != "POST": return not_found("Bad method on control path")

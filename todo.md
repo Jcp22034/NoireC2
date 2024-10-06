@@ -4,6 +4,7 @@
 
 - [ ] Add encryption/password(s) to the database
 - [x] Add optional name/nickname for clients
+- [ ] Add SSL encryption support
 
 ## Web UI
 
@@ -20,8 +21,9 @@
 - [x] Settings page
 - [ ] Edit user groups
 - [x] Delete users (by self or admin)
-- [ ] Delete groups
+- [x] Delete groups
 - [ ] Good looking UI
+- [ ] Instant messaging between teams & private messages
 - [ ] Anything else we can think of
 
 ## HTTP C2 Server

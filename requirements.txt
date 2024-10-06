@@ -9,4 +9,5 @@ Flask-sqlalchemy
 pyjwt
 eventlet
 mss
+pyjwt
 Flask-SocketIO
