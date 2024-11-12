@@ -8,11 +8,23 @@ import bcrypt
 import base64
 import jwt
 from eventlet import wsgi, listen
+from requests import session
 
 app = flask.Flask(__name__)
 app.secret_key = secrets.token_hex()
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 socketio = SocketIO(app)
+
+# Add security headers
+@app.after_request
+def add_security_headers(resp):
+    resp.headers['Content-Security-Policy']='default-src \'self\''
+    resp.headers['Server']='NoireC2'
+    resp.headers['X-Powered-By']='NoireC2'
+    resp.headers['X-Content-Type-Options']='nosniff'
+    resp.headers['X-XSS-Protection']='1; mode=block'
+    resp.headers['Content-Type']='text/html; charset=utf-8'
+    return resp
 
 db = SQLAlchemy()
 
@@ -73,12 +85,8 @@ class Group(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
-    administrator = db.Column(db.Boolean, default=False)
-    change_user_passwords = db.Column(db.Boolean, default=False)
-    change_admin_passwords = db.Column(db.Boolean, default=False)
-    change_user_permissions = db.Column(db.Boolean, default=False)
-    change_admin_permissions = db.Column(db.Boolean, default=False)
-    delete_users = db.Column(db.Boolean, default=False)
+    owner = db.Column(db.String)
+    members = db.Column(db.String)
     
 class Device(db.Model):
     """A Device connected to the server
@@ -118,6 +126,7 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
+# Define the login manager
 login_manager = flask_login.LoginManager()
 login_manager.init_app(app)
 login_manager.refresh_view = '/login'
@@ -192,22 +201,13 @@ def deleteAccount(username:str) -> str:
     db.session.commit()
     return 'Account deleted successfully'
 
-def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = False, change_admin_passwords:bool = False, change_user_permissions:bool = False, change_admin_permissions:bool = False) -> str:
+def addGroup(name:str, owner:str) -> str:
     """
     Add a group to the database.
 
     Args:
         name (str): The name of the group to add.
-        administrator (bool, optional): Whether the group should have administrator privileges.
-            Defaults to False.
-        change_user_passwords (bool, optional): Whether the group should be able to change user passwords.
-            Defaults to False.
-        change_admin_passwords (bool, optional): Whether the group should be able to change admin passwords.
-            Defaults to False.
-        change_user_permissions (bool, optional): Whether the group should be able to change user permissions.
-            Defaults to False.
-        change_admin_permissions (bool, optional): Whether the group should be able to change admin permissions.
-            Defaults to False.
+        owner (str): The owner of the group.
 
     Returns:
         str: A message indicating whether the group was created successfully.
@@ -222,11 +222,7 @@ def addGroup(name:str, administrator:bool = False, change_user_passwords:bool = 
     # Create the new group
     new_group = Group(
         name=name,
-        administrator=administrator,
-        change_user_passwords=change_user_passwords,
-        change_admin_passwords=change_admin_passwords,
-        change_user_permissions=change_user_permissions,
-        change_admin_permissions=change_admin_permissions
+        owner=owner
     )
     
     # Add the new group to the database
@@ -253,9 +249,10 @@ def deleteGroup(name:str) -> str:
 
 #Startup checks
 with app.app_context():
+    a = addAccount('system', '', True)
     a = addAccount('admin', 'test', True)
-    a = addGroup('admins', True, True, True, True, True)
-    a = addGroup('users')
+    a = addGroup('admins', 'admin')
+    a = addGroup('users', 'system')
     
     #Delete all known links for devices, so new can be generated
     if Device.query.all():
@@ -490,17 +487,16 @@ def selectChangePermsPage():
     groups = []
     if user.has_permission('change_user_permissions') or user.has_permission('change_admin_permissions'):
         aUsers = User.query.all()
+        groups = Group.query.filter_by(owner=user.username).all()
         if user.has_permission('change_user_permissions') and user.has_permission('change_admin_permissions'):
             groups = Group.query.all()
             users = aUsers
         elif user.has_permission('change_user_permissions'):
             for u in aUsers:
                 if not u.has_permission('administrator'): users.append(u)
-            groups = Group.query.filter_by(admin=False).all()
         else:
             for u in aUsers:
                 if u.has_permission('administrator'): users.append(u)
-            groups = Group.query.filter_by(admin=True).all()
     flask.session['users'] = [u.username for u in users]
     flask.session['groups'] = [g.name for g in groups]
     return flask.render_template('selectChangePermissions.html', users = flask.session['users'], groups = flask.session['groups'])
@@ -583,12 +579,12 @@ def createGroupPage():
         return flask.redirect(flask.url_for('settingsPage'))
     if flask.request.method == 'POST':
         groupName = flask.request.form.get('groupName')
-        newGroup = addGroup(groupName)
+        newGroup = addGroup(groupName, session['username'])
         flask.flash(newGroup, 'info')
     return flask.render_template('createGroup.html')
 
 #C2 interface
-def validateC2Client(request:flask.request) -> bool:
+def validateC2Client(request:flask.Request) -> bool:
     """
     This function validates the C2 client by checking the request headers and decoding the NClient-Token. 
     It returns a boolean value indicating whether the client is valid or not.
